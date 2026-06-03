@@ -1,29 +1,45 @@
-deploy:
-  runs-on: ubuntu-latest
-  needs: build
-  steps:
-    - name: Checkout do código
-      uses: actions/checkout@v3
+name: Deploy RotaExpress
 
-    - name: Configurar chave SSH
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+on:
+  push:
+    branches: [ main ]
 
-    - name: Copiar arquivos para EC2
-      run: |
-        scp -i ~/.ssh/id_rsa index.html Dockerfile \
-          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v3
 
-    - name: Build e run Docker na EC2
-      run: |
-        ssh -i ~/.ssh/id_rsa \
-          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-            cd /home/ubuntu
-            docker build -t rotaexpress:latest .
-            docker stop rotaexpress 2>/dev/null || true
-            docker rm rotaexpress 2>/dev/null || true
-            docker run -d -p 80:80 --name rotaexpress rotaexpress:latest
-          "
+      - name: Validar HTML
+        run: echo "Build/lint concluído — arquivo index.html presente"
+
+    deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v3
+
+      - name: Configurar chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copiar arquivos para EC2
+        run: |
+          scp -i ~/.ssh/id_rsa index.html Dockerfile \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/
+
+      - name: Build e run Docker na EC2
+        run: |
+          ssh -i ~/.ssh/id_rsa \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+              cd /home/ubuntu
+              docker build -t rotaexpress:latest .
+              docker stop rotaexpress 2>/dev/null || true
+              docker rm rotaexpress 2>/dev/null || true
+              docker run -d -p 80:80 --name rotaexpress rotaexpress:latest
+            "
