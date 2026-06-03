@@ -1,0 +1,40 @@
+name: Deploy — Desenvolvimento
+
+on:
+  push:
+    branches: [ develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Validar HTML
+        run: |
+          echo "Verificando index.html..."
+          test -f index.html && echo "OK: index.html encontrado"
+
+  deploy-dev:
+    runs-on: ubuntu-latest
+    needs: build
+    environment: development
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configurar SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEV_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.DEV_HOST }} >> ~/.ssh/known_hosts
+      - name: Deploy na EC2-dev
+        run: |
+          scp -i ~/.ssh/id_rsa index.html Dockerfile \
+            ${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }}:/home/ubuntu/
+          ssh -i ~/.ssh/id_rsa \
+            ${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }} "
+              cd /home/ubuntu
+              docker build -t rotaexpress:dev .
+              docker stop rotaexpress-dev 2>/dev/null || true
+              docker rm rotaexpress-dev 2>/dev/null || true
+              docker run -d -p 80:80 --name rotaexpress-dev rotaexpress:dev
+            "
